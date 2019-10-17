@@ -179,7 +179,6 @@ def delete_flavor(nova, operation):
 
 def create_keypair(args, nova):
     keypair = nova.keypairs.create(name="rax-test-keypair-"+args.ticket_id)
-    print(keypair.id)
     test_data['keypair_id'] = str(keypair.id)
     test_data['keypair_private_key'] = str(keypair.private_key)
 
@@ -257,19 +256,16 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
         operation = "Create Flavor"
         create_flavor(args, nova)
         while nova_timeout > 0:
-            print(test_data)
             if 'flavor_id' in test_data:
                 component.add_row([operation, 'SUCCESS', test_data['flavor_id']])
                 break
             time.sleep(1)
             nova_timeout -= 1
 
-        print(test_data)
 
         operation = "Create Keypair"
         create_keypair(args, nova)
         while nova_timeout > 0:
-            print(test_data)
             if 'keypair_id' in test_data:
                 component.add_row([operation, 'SUCCESS', test_data['keypair_id']])
                 break
@@ -279,7 +275,6 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
         operation = "Create Instance"
         create_instance(args, nova)
         while nova_timeout > 0:
-            print(nova_timeout)
             if nova.servers.get(test_data['instance_id']).status.lower() == "active":
                 component.add_row([operation, "SUCCESS", test_data['instance_id']])
                 if not confparser.has_option('nova', 'delete'):
@@ -302,7 +297,6 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
                     if i['addr'] == test_data['floating_ip']:
                         f_ip_assigned = True
                         component.add_row([operation, "SUCCESS", "-"])
-                        print("assigned f ip")
                 if f_ip_assigned:
                     break
                 time.sleep(1)
@@ -310,7 +304,6 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
                 if nova_timeout == 0:
                     component.add_row([operation, "Timed out", "-"])
                     return
-        print("now deleting as its true")
         if confparser.has_option('nova', 'delete'):
             if str(confparser.get('nova', 'delete')).lower() == "true":
                 operation = "Delete Instance"
@@ -391,7 +384,6 @@ def val_cinder(args, cinder, timeout):
 
     except Exception as e:
         component.add_row([operation, "FAILED", str(e)])
-        print(e)
         return
 
 
