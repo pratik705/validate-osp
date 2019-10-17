@@ -240,6 +240,10 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
     try:
         for i in nova.services.findall():
             if str(i.state) == "down":
+                operation = "Delete Image"
+                delete_image(glance, operation)
+                if confparser.has_section('neutron'):
+                    delete_neutron(neutron)
                 print("ERROR: Nova is down")
                 os.system('openstack compute service list')
                 sys.exit()
