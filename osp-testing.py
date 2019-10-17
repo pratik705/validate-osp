@@ -240,9 +240,13 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
     try:
         for i in nova.services.findall():
             if str(i.state) == "down":
+                operation = "Delete Image"
+                delete_image(glance, operation)
+                if confparser.has_section('neutron'):
+                    delete_neutron(neutron)
                 print("ERROR: Nova is down")
                 os.system('openstack compute service list')
-                sys.exit()
+                return
         if "network_id" not in test_data.keys():
             val_neutron(args, neutron)
         if "image_id" not in test_data.keys():
@@ -279,9 +283,9 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
             if nova.servers.get(test_data['instance_id']).status.lower() == "active":
                 component.add_row([operation, "SUCCESS", test_data['instance_id']])
                 if not confparser.has_option('nova', 'delete'):
-    		    f = open("rax-test-keypair-"+args.ticket_id, "w")
-		    f.write(test_data['keypair_private_key'])
-		    f.close()
+                    f = open("rax-test-keypair-"+args.ticket_id, "w")
+                    f.write(test_data['keypair_private_key'])
+                    f.close()
                 break
             time.sleep(1)
             nova_timeout -= 1
@@ -329,7 +333,7 @@ def val_neutron(args, neutron):
             if not i['alive']:
                 print("ERROR: Neutron is down")
                 os.system('openstack network agent list')
-                sys.exit()
+                return
         operation = "Create Network"
         create_network(args, neutron)
         if neutron.show_network(test_data['network_id'])['network']['status'].lower() == 'active':
@@ -372,7 +376,7 @@ def val_cinder(args, cinder, timeout):
                     if i.state == 'down':
                         print("ERROR: Cinder is down")
                         os.system('openstack volume service list')
-                        sys.exit()
+                        return
         operation = "Create volume"
         create_volume(args, cinder)
         while timeout > 0:
