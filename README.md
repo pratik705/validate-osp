@@ -78,10 +78,10 @@ on the existing OSP/overcloud
   ```
   [neutron]
   ## Enabling "[neutron]" will perform following operations:
-  ## - Create network 
+  ## - Create network
   ## - Create subnet
   ## - Create router
-  ## - Attach subnet to router 
+  ## - Attach subnet to router
   ## Once all above operations are successful, resources will be deleted
 
   ## external-network-id [OPTIONAL]: If "external-network-id" is set then, test router will be created with
@@ -90,13 +90,13 @@ on the existing OSP/overcloud
 
 
 
-  #[glance]
+  [glance]
   ## Enabling "[glance]" will perform following operations:
   ## - Create image
   ## Once image is successfully created, it will be removed.
 
   ## image_absolute_path [REQUIRED]: Absolute path of the glance image to upload
-  #image_absolute_path=~/cirros-0.4.0-x86_64-disk.img
+  image_absolute_path=~/cirros-0.4.0-x86_64-disk.img
 
 
 
@@ -115,15 +115,17 @@ on the existing OSP/overcloud
   ## - Create Instance
   ## Once instance is successfully created, resources will remain unless "delete" is set to true.
 
-  ## If instance is required to have floating IP then, enable "[neutron]" section and specify external 
+  ## If instance is required to have floating IP then, enable "[neutron]" section and specify external
   ## network id in "external-network-id" variable.
 
-  ## timeout [OPTIONAL]: timeout value[seconds] to create a instance. If the environment is slow, then increase it accordingly. 
-  ## Default value is 60 
+  ## timeout [OPTIONAL]: timeout value[seconds] to create a instance. If the environment is slow, then increase it accordingly.
+  ## Default value is 60
   #timeout = 120
 
   ## delete [OPTIONAL]: If the resources are required to be removed then, set it to "true".
   ## Default value is false
+  ## If delete is disabled, then resources will not be removed and ssh private key will be download locally which you can
+  ## use to access the instance
   #delete = true
 
 
@@ -134,9 +136,10 @@ on the existing OSP/overcloud
   ## Default value is false
   #check_service_status = true
 
-  ## volume_type [OPTIONAL]: Cinder volume type where you want to create a volume. 
+  ## volume_type [OPTIONAL]: Cinder volume type where you want to create a volume.
   ## Default value is None
   #volume_type = "abc"
 
   #timeout = 10
+
   ```
