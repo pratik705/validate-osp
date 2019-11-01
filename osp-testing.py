@@ -219,6 +219,22 @@ def create_volume(args, cinder):
     test_data['volume_id'] = str(volume_id.id)
 
 
+def delete_volume(cinder, operation, timeout):
+    try:
+        cinder.volumes.delete(test_data['volume_id'])
+        while timeout > 0:
+            if not cinder.volumes.findall(id=test_data['volume_id']):
+                component.add_row([operation, "SUCCESS", test_data['volume_id']]) 
+    		test_data.pop('volume_id')
+                break
+            time.sleep(1)
+            timeout -= 1
+            if timeout == 0:
+                component.add_row([operation, "Timed out", "-"])
+                return             
+    except Exception as e:
+            component.add_row([operation, "FAILED", e])
+            
 def val_glance(args, glance):
     try:
         operation = "Create Image"
@@ -381,7 +397,9 @@ def val_cinder(args, cinder, timeout):
             if timeout == 0:
                 component.add_row([operation, "Timed out", "-"])
                 return
-
+        if not confparser.has_section('nova'):
+            operation = "Delete cinder volume"
+            delete_volume(cinder, operation, timeout)
     except Exception as e:
         component.add_row([operation, "FAILED", str(e)])
         return
