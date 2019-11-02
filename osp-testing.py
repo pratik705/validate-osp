@@ -166,7 +166,6 @@ def delete_image(glance, operation):
 
 
 def create_flavor(args, nova):
-    if len(nova.flavors.findall(name='rax-test-flavor-'+args.ticket_id)) != 1:
         flavor=nova.flavors.create("rax-test-flavor-"+args.ticket_id, 2048, 2, 10)
         test_data['flavor_id'] = str(flavor.id)
 
@@ -211,30 +210,51 @@ def delete_instance(nova, timeout):
 
 
 def create_volume(args, cinder):
+    volume_type = None
     try:
-        volume_type = confparser.get('cinder', 'volume_type')
+        if confparser.has_section('cinder'):
+            volume_type = confparser.get('cinder', 'volume_type')
     except configparser.NoOptionError:
         volume_type = None
     volume_id=cinder.volumes.create(10, name='rax-test-volume-'+args.ticket_id, volume_type=volume_type)
     test_data['volume_id'] = str(volume_id.id)
 
 
-def delete_volume(cinder, operation, timeout):
+def delete_volume(cinder, operation):
     try:
+        timeout = task_timeout('cinder')
+        cinder.volumes.detach(test_data['volume_id'])
         cinder.volumes.delete(test_data['volume_id'])
         while timeout > 0:
             if not cinder.volumes.findall(id=test_data['volume_id']):
-                component.add_row([operation, "SUCCESS", test_data['volume_id']]) 
-    		test_data.pop('volume_id')
+                component.add_row([operation, "SUCCESS", test_data['volume_id']])
+                test_data.pop('volume_id')
                 break
             time.sleep(1)
             timeout -= 1
             if timeout == 0:
                 component.add_row([operation, "Timed out", "-"])
-                return             
+                return
+    except Exception as e:
+            component.add_row([operation, "FAILED", str(e)])
+
+
+def attach_volume(cinder, operation, timeout):
+    try:
+        cinder.volumes.attach(test_data['volume_id'], test_data['instance_id'], "/dev/sdb")
+        while timeout >0:
+            if cinder.volumes.get(test_data['volume_id']).attachments[0]['server_id'] == test_data['instance_id']:
+                component.add_row([operation, "SUCCESS", "-"])
+                break
+            time.sleep(1)
+            timeout -= 1
+            if timeout == 0:
+                component.add_row([operation, "Timed out", "-"])
+                return
     except Exception as e:
             component.add_row([operation, "FAILED", e])
-            
+
+
 def val_glance(args, glance):
     try:
         operation = "Create Image"
@@ -251,7 +271,7 @@ def val_glance(args, glance):
             component.add_row([operation, "FAILED", e])
 
 
-def val_nova(args, nova, neutron, glance, nova_timeout):
+def val_nova(args, nova, neutron, glance, cinder, nova_timeout):
     try:
         for i in nova.services.findall():
             if str(i.state) == "down":
@@ -288,6 +308,9 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
             time.sleep(1)
             nova_timeout -= 1
 
+        if "volume_id" not in test_data.keys():
+            val_cinder(args, cinder)
+
         operation = "Create Instance"
         create_instance(args, nova)
         while nova_timeout > 0:
@@ -320,8 +343,14 @@ def val_nova(args, nova, neutron, glance, nova_timeout):
                 if nova_timeout == 0:
                     component.add_row([operation, "Timed out", "-"])
                     return
+        if test_data.has_key('volume_id'):
+            operation = "Attach volume to the instance"
+            attach_volume(cinder, operation, nova_timeout)
         if confparser.has_option('nova', 'delete'):
             if str(confparser.get('nova', 'delete')).lower() == "true":
+                if "volume_id" in test_data.keys():
+	            operation = "Detach and delete the volume"
+                    delete_volume(cinder, operation)
                 operation = "Delete Instance"
                 delete_instance(nova, nova_timeout)
                 delete_neutron(neutron)
@@ -376,16 +405,18 @@ def val_neutron(args, neutron):
         return
 
 
-def val_cinder(args, cinder, timeout):
+def val_cinder(args, cinder):
     try:
-        if confparser.has_option('cinder', 'check_service_status'):
-            if str(confparser.get('cinder', 'check_service_status')) == 'true':
-                operation = "Status of Cinder API"
-                for i in cinder.services.list(binary='cinder-scheduler'):
-                    if i.state == 'down':
-                        print("ERROR: Cinder is down")
-                        os.system('openstack volume service list')
-                        return
+        timeout = task_timeout('cinder')
+        if confparser.has_section('cinder'):
+            if confparser.has_option('cinder', 'check_service_status'):
+                if str(confparser.get('cinder', 'check_service_status')) == 'true':
+                    operation = "Status of Cinder API"
+                    for i in cinder.services.list(binary='cinder-scheduler'):
+                        if i.state == 'down':
+                            print("ERROR: Cinder is down")
+                            os.system('openstack volume service list')
+                            return
         operation = "Create volume"
         create_volume(args, cinder)
         while timeout > 0:
@@ -399,7 +430,8 @@ def val_cinder(args, cinder, timeout):
                 return
         if not confparser.has_section('nova'):
             operation = "Delete cinder volume"
-            delete_volume(cinder, operation, timeout)
+            delete_volume(cinder, operation)
+
     except Exception as e:
         component.add_row([operation, "FAILED", str(e)])
         return
@@ -426,23 +458,23 @@ def main():
             val_overcloud_conf('glance', operation, glance)
             val_glance(args, glance)
 
+        if confparser.has_section('cinder'):
+            print("Cinder is true")
+            operation = "Cinder: Validating 'overcloud_conf.ini'"
+            cinder = cinder_client.Client("2", session=overcloud_auth())
+            val_overcloud_conf('cinder', operation, cinder)
+            val_cinder(args, cinder)
+
         if confparser.has_section('nova'):
             print("Nova is true")
             operation = "Nova: Validating 'overcloud_conf.ini'"
             nova = nova_client.Client('2', session=overcloud_auth())
             neutron = neutron_client.Client(session=overcloud_auth())
             glance = glance_client('2', session=overcloud_auth())
+            cinder = cinder_client.Client("2", session=overcloud_auth())
             val_overcloud_conf('nova', operation, nova)
             timeout = task_timeout('nova')
-            val_nova(args, nova, neutron, glance, timeout)
-
-        if confparser.has_section('cinder'):
-            print("Cinder is true")
-            operation = "Cinder: Validating 'overcloud_conf.ini'"
-            cinder = cinder_client.Client("2", session=overcloud_auth())
-            val_overcloud_conf('cinder', operation, cinder)
-            timeout = task_timeout('cinder')
-            val_cinder(args, cinder, timeout)
+            val_nova(args, nova, neutron, glance, cinder, timeout)
 
     except IOError:
         sys.exit('ERROR: Overcloud configuration file {}/overcloud_conf.ini does not exist'.format(os.getcwd()))
